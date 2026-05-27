@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'services/tweet_service.dart';
 import 'services/auth_service.dart';
 import 'models/tweet.dart';
+import 'models/reaction_count.dart';
 import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
+import 'screens/create_post_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,15 +21,23 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tweeter - Singleton Pattern',
+      title: 'Zombie Network',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFCC0000),
+          surface: Color(0xFF1A0000),
+        ),
         useMaterial3: true,
       ),
       home: _buildHome(),
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const MyHomePage(title: 'Tweeter - REST API Integration'),
+        '/home': (context) =>
+            const MyHomePage(title: '[ ZOMBIE NETWORK ]'),
+        '/register': (context) => const RegisterScreen(),
+        '/create-post': (context) => const CreatePostScreen(),
       },
     );
   }
@@ -33,16 +45,17 @@ class MyApp extends StatelessWidget {
   Widget _buildHome() {
     final authService = AuthService();
     if (authService.isAuthenticated()) {
-      return const MyHomePage(title: 'Tweeter - REST API Integration');
+      return const MyHomePage(title: '[ ZOMBIE NETWORK ]');
     } else {
       return const LoginScreen();
     }
   }
 }
 
+// ─── HOME PAGE ───────────────────────────────────────────────────────────────
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
   final String title;
 
   @override
@@ -50,145 +63,93 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  // Using the singleton instance
   late TweetService _tweetService;
   late AuthService _authService;
-  late Future<List<Tweet>> _tweetsFuture;
-  final TextEditingController _tweetController = TextEditingController();
-  bool _isLoading = false;
+  late Future<List<Tweet>> _postsFuture;
 
   @override
   void initState() {
     super.initState();
-    // Get the singleton instances
     _tweetService = TweetService();
     _authService = AuthService();
-    _loadTweets();
+    _loadPosts();
   }
 
-  /// Load tweets from the API
-  void _loadTweets() {
+  void _loadPosts() {
     setState(() {
-      _tweetsFuture = _tweetService.fetchTweets();
+      _postsFuture = _tweetService.fetchTweets();
     });
   }
 
-  /// Handle logout
   Future<void> _logout() async {
     await _authService.logout();
     if (mounted) {
       Navigator.of(context).pushReplacementNamed('/login');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sesión cerrada')),
-      );
     }
   }
 
-  /// Create a new tweet
-  Future<void> _createTweet() async {
-    final content = _tweetController.text.trim();
-    if (content.isEmpty) {
-      _showErrorDialog('Tweet content cannot be empty');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      await _tweetService.createTweet(content);
-      _tweetController.clear();
-      _loadTweets(); // Auto-refresh after creating
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tweet created successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      _showErrorDialog('Error creating tweet: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  /// Delete a tweet by ID
-  Future<void> _deleteTweet(int id) async {
-    setState(() => _isLoading = true);
-
+  Future<void> _deletePost(int id) async {
     try {
       await _tweetService.deleteTweet(id);
-      _loadTweets(); // Auto-refresh after deletion
+      _loadPosts();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Tweet deleted successfully!'),
-            backgroundColor: Colors.blue,
-            duration: Duration(seconds: 2),
+            content: Text('[ POST ELIMINADO ]'),
+            backgroundColor: Color(0xFFCC0000),
           ),
         );
       }
     } catch (e) {
-      _showErrorDialog('Error deleting tweet: $e');
-    } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red[900],
+          ),
+        );
       }
     }
   }
 
-  /// Show confirmation dialog before deleting
-  void _showDeleteConfirmation(int id) {
+  void _confirmDelete(int id) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Delete Tweet?'),
-          content: const Text('Are you sure you want to delete this tweet?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _deleteTweet(id);
-              },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Show error dialog
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Error'),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0000),
+        title: const Text(
+          '[ ELIMINAR POST ]',
+          style: TextStyle(
+            color: Color(0xFFCC0000),
+            fontFamily: 'monospace',
+            fontSize: 16,
+          ),
+        ),
+        content: const Text(
+          '¿Confirmas la eliminación?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('CANCELAR',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _deletePost(id);
+            },
+            child: const Text('ELIMINAR',
+                style: TextStyle(color: Color(0xFFCC0000))),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   void dispose() {
-    _tweetController.dispose();
     _tweetService.dispose();
     super.dispose();
   }
@@ -197,162 +158,350 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     final user = _authService.getUser();
     return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-        elevation: 2,
+        backgroundColor: const Color(0xFF0D0000),
+        title: const Text(
+          '[ ZOMBIE NETWORK ]',
+          style: TextStyle(
+            color: Color(0xFFCC0000),
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            fontSize: 16,
+          ),
+        ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Center(
               child: Text(
-                'Usuario: ${user?.username ?? "Unknown"}',
-                style: const TextStyle(fontSize: 14),
+                user?.username ?? '',
+                style: const TextStyle(
+                  color: Color(0xFF888888),
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
           PopupMenuButton(
-            itemBuilder: (BuildContext context) => [
+            iconColor: const Color(0xFFCC0000),
+            color: const Color(0xFF1A0000),
+            itemBuilder: (_) => [
               PopupMenuItem(
                 onTap: _logout,
-                child: const Text('Cerrar Sesión'),
+                child: const Text(
+                  'CERRAR SESIÓN',
+                  style: TextStyle(
+                    color: Color(0xFFCC0000),
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ],
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: const Color(0xFF3A0000)),
+        ),
       ),
-      body: Column(
-        children: [
-          // Add Tweet Input Section
-          _buildCreateTweetSection(),
-          // Tweets List Section
-          Expanded(
-            child: FutureBuilder<List<Tweet>>(
-              future: _tweetsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 64,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error: ${snapshot.error}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _loadTweets,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+      body: RefreshIndicator(
+        color: const Color(0xFFCC0000),
+        backgroundColor: const Color(0xFF1A0000),
+        onRefresh: () async => _loadPosts(),
+        child: FutureBuilder<List<Tweet>>(
+          future: _postsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFCC0000),
+                ),
+              );
+            } else if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('☣',
+                        style: TextStyle(fontSize: 48, color: Color(0xFFCC0000))),
+                    const SizedBox(height: 16),
+                    Text(
+                      '[ ERROR DE CONEXIÓN ]',
+                      style: TextStyle(
+                        color: Colors.red[400],
+                        fontFamily: 'monospace',
+                      ),
                     ),
-                  );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No tweets available'),
-                  );
-                } else {
-                  final tweets = snapshot.data!;
-                  return ListView.builder(
-                    itemCount: tweets.length,
-                    itemBuilder: (context, index) {
-                      final tweet = tweets[index];
-                      return _buildTweetCard(tweet);
-                    },
-                  );
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    OutlinedButton(
+                      onPressed: _loadPosts,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFCC0000),
+                        side: const BorderSide(color: Color(0xFFCC0000)),
+                      ),
+                      child: const Text('REINTENTAR',
+                          style: TextStyle(fontFamily: 'monospace')),
+                    ),
+                  ],
+                ),
+              );
+            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(
+                child: Text(
+                  '[ SIN REPORTES EN LA ZONA ]',
+                  style: TextStyle(
+                    color: Color(0xFF555555),
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              );
+            }
+
+            final posts = snapshot.data!;
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                return PostCard(
+                  post: posts[index],
+                  currentUserId: user?.id,
+                  onDelete: _confirmDelete,
+                  tweetService: _tweetService,
+                );
+              },
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFFCC0000),
+        foregroundColor: Colors.white,
+        // onPressed se conectará a /create-post en el siguiente paso
+        onPressed: () => Navigator.of(context).pushNamed('/create-post')
+            .then((_) => _loadPosts()),
+        child: const Icon(Icons.add),
+        tooltip: 'Nuevo reporte',
+      ),
+    );
+  }
+}
+
+// ─── POST CARD ────────────────────────────────────────────────────────────────
+
+class PostCard extends StatefulWidget {
+  final Tweet post;
+  final int? currentUserId;
+  final void Function(int) onDelete;
+  final TweetService tweetService;
+
+  const PostCard({
+    super.key,
+    required this.post,
+    required this.currentUserId,
+    required this.onDelete,
+    required this.tweetService,
+  });
+
+  @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard> {
+  late Future<List<ReactionCount>> _reactionsFuture;
+
+  // Mapeo de tipo de reacción a emoji
+  static const Map<String, String> _reactionEmojis = {
+    'REACTION_SKULL': '💀',
+    'REACTION_BIOHAZARD': '☣️',
+    'REACTION_FIRE': '🔥',
+    'REACTION_BRAIN': '🧠',
+    'REACTION_INFECTED': '🧟',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReactions();
+  }
+
+  void _loadReactions() {
+    setState(() {
+      _reactionsFuture = widget.tweetService.fetchReactions(widget.post.id);
+    });
+  }
+
+  Future<void> _handleReaction(int reactionId) async {
+    try {
+      await widget.tweetService.reactToPost(widget.post.id, reactionId);
+      _loadReactions();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red[900],
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = widget.currentUserId != null &&
+        widget.post.postedBy?.id == widget.currentUserId;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF120000),
+        border: Border.all(color: const Color(0xFF3A0000)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: username + delete
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 0),
+            child: Row(
+              children: [
+                const Text('☣ ',
+                    style: TextStyle(
+                      color: Color(0xFFCC0000),
+                      fontSize: 12,
+                    )),
+                Expanded(
+                  child: Text(
+                    widget.post.postedBy?.username ?? 'Desconocido',
+                    style: const TextStyle(
+                      color: Color(0xFFCC0000),
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                if (isOwner)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        color: Color(0xFF884444), size: 18),
+                    onPressed: () => widget.onDelete(widget.post.id),
+                    tooltip: 'Eliminar post',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
+          ),
+
+          // Image
+          if (widget.post.imageUrl != null &&
+              widget.post.imageUrl!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.zero),
+              child: CachedNetworkImage(
+                imageUrl: widget.post.imageUrl!,
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: const Color(0xFF1A0000),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFCC0000),
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 80,
+                  color: const Color(0xFF1A0000),
+                  child: const Center(
+                    child: Icon(Icons.broken_image,
+                        color: Color(0xFF3A0000), size: 32),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // Description
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Text(
+              widget.post.description,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ),
+
+          // Reactions bar
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(
+                  top: BorderSide(color: Color(0xFF2A0000))),
+            ),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: FutureBuilder<List<ReactionCount>>(
+              future: _reactionsFuture,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox(height: 32);
                 }
+                final reactions = snapshot.data!;
+                return Row(
+                  children: reactions.map((r) {
+                    final emoji =
+                        _reactionEmojis[r.reactionType] ?? '❓';
+                    return Expanded(
+                      child: InkWell(
+                        onTap: () => _handleReaction(r.reactionId),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 4, horizontal: 2),
+                          child: Column(
+                            children: [
+                              Text(emoji,
+                                  style: const TextStyle(fontSize: 18)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${r.count}',
+                                style: const TextStyle(
+                                  color: Color(0xFF888888),
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
               },
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Build the create tweet input section
-  Widget _buildCreateTweetSection() {
-    return Container(
-      color: Colors.grey[100],
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          TextField(
-            controller: _tweetController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: 'What\'s on your mind?',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              fillColor: Colors.white,
-              filled: true,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _createTweet,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Post Tweet'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build individual tweet card with delete button
-  Widget _buildTweetCard(Tweet tweet) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    tweet.tweet,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _showDeleteConfirmation(tweet.id),
-                  tooltip: 'Delete tweet',
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'ID: ${tweet.id}',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ],
-        ),
       ),
     );
   }

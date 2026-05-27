@@ -1,18 +1,11 @@
 import '../models/tweet.dart';
+import '../models/reaction_count.dart';
 
-/// Abstract interface for Twitter repository operations
-/// Follows the Dependency Inversion Principle (DIP)
-/// Allows for different implementations (HTTP, local cache, mock, etc.)
 abstract class ITweetRepository {
-  /// Fetch all tweets
   Future<List<Tweet>> fetchTweets();
-
-  /// Create a new tweet
-  Future<Tweet> createTweet(String content);
-
-  /// Delete a tweet by ID
+  Future<Tweet> createTweet(String description, String? imageUrl);
   Future<void> deleteTweet(int id);
-
-  /// Cleanup resources
+  Future<List<ReactionCount>> fetchReactions(int postId);
+  Future<void> reactToPost(int postId, int reactionId);
   void dispose();
 }

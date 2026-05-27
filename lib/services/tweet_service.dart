@@ -2,138 +2,135 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/tweet.dart';
 import '../models/tweet_response.dart';
+import '../models/reaction_count.dart';
 import '../repositories/tweet_repository.dart';
 import 'auth_service.dart';
 
-/// Singleton service implementing the Repository Pattern
-/// Implements: Singleton Pattern + Repository Pattern + Error Handling
-/// Follows SOLID principles: Single Responsibility, Dependency Inversion
 class TweetService implements ITweetRepository {
   static final TweetService _instance = TweetService._internal();
 
-  //final String baseUrl = 'https://adsoftsito-api.render.com/api';
+  // Para APK en dispositivo real: cambia a tu IP local, ej: http://192.168.1.X:8080/api
   final String baseUrl = 'http://localhost:8080/api';
+
   late http.Client _httpClient;
   late AuthService _authService;
 
-  // Private constructor
   TweetService._internal() {
     _httpClient = http.Client();
     _authService = AuthService();
   }
 
-  /// Factory constructor that always returns the same instance
-  factory TweetService() {
-    return _instance;
-  }
+  factory TweetService() => _instance;
 
-  /// Get the singleton instance
-  static TweetService getInstance() {
-    return _instance;
-  }
+  static TweetService getInstance() => _instance;
 
-  /// Get headers with authentication token
   Map<String, String> _getHeaders() {
     final token = _authService.getToken();
-    final headers = {
-      'Content-Type': 'application/json',
-    };
-    
+    final headers = {'Content-Type': 'application/json'};
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
-    
     return headers;
   }
 
   @override
   Future<List<Tweet>> fetchTweets() async {
     try {
-      // Ensure auth is initialized before getting token
       await _authService.init();
-
       final response = await _httpClient.get(
-        Uri.parse('$baseUrl/tweets/all'),
+        Uri.parse('$baseUrl/posts/all'),
         headers: _getHeaders(),
       );
-
       if (response.statusCode == 200) {
-        return _parseGetTweetsResponse(response.body);
+        final jsonData = jsonDecode(response.body);
+        final tweetResponse = TweetResponse.fromJson(
+            Map<String, dynamic>.from(jsonData as Map));
+        return tweetResponse.content;
       } else {
-        throw Exception(
-          'Failed to load tweets. Status code: ${response.statusCode}',
-        );
+        throw Exception('Error al cargar posts: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching tweets: $e');
+      throw Exception('Error: $e');
     }
   }
 
   @override
-  Future<Tweet> createTweet(String content) async {
+  Future<Tweet> createTweet(String description, String? imageUrl) async {
     try {
-      if (content.isEmpty) {
-        throw Exception('Tweet content cannot be empty');
-      }
-
-      // Ensure auth is initialized before getting token
       await _authService.init();
-
       final response = await _httpClient.post(
-        Uri.parse('$baseUrl/tweets/create'),
+        Uri.parse('$baseUrl/posts/create'),
         headers: _getHeaders(),
-        body: jsonEncode({'tweet': content}),
+        body: jsonEncode({
+          'description': description,
+          'imageUrl': imageUrl ?? '',
+        }),
       );
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return _parseTweetResponse(response.body);
+        return Tweet.fromJson(
+            Map<String, dynamic>.from(jsonDecode(response.body) as Map));
       } else {
-        throw Exception(
-          'Failed to create tweet. Status code: ${response.statusCode}. ${response.body}',
-        );
+        throw Exception('Error al crear post: ${response.statusCode}. ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error creating tweet: $e');
+      throw Exception('Error: $e');
     }
   }
 
   @override
   Future<void> deleteTweet(int id) async {
     try {
-      // Ensure auth is initialized before getting token
       await _authService.init();
-
       final response = await _httpClient.delete(
-        Uri.parse('$baseUrl/tweets/$id'),
+        Uri.parse('$baseUrl/posts/$id'),
         headers: _getHeaders(),
       );
-
-      if (response.statusCode != 204 && response.statusCode != 200) {
-        throw Exception(
-          'Failed to delete tweet. Status code: ${response.statusCode}',
-        );
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al eliminar: ${response.statusCode}. ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error deleting tweet: $e');
+      throw Exception('Error: $e');
     }
   }
 
-  /// Parse GET tweets response - Single Responsibility
-  List<Tweet> _parseGetTweetsResponse(String responseBody) {
-    final jsonData = jsonDecode(responseBody);
-    final jsonMap = Map<String, dynamic>.from(jsonData as Map);
-    final tweetResponse = TweetResponse.fromJson(jsonMap);
-    return tweetResponse.content;
+  @override
+  Future<List<ReactionCount>> fetchReactions(int postId) async {
+    try {
+      await _authService.init();
+      final response = await _httpClient.get(
+        Uri.parse('$baseUrl/posts/$postId/reactions'),
+        headers: _getHeaders(),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((e) => ReactionCount.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      } else {
+        throw Exception('Error al cargar reacciones: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error: $e');
+    }
   }
 
-  /// Parse single tweet response - Single Responsibility
-  Tweet _parseTweetResponse(String responseBody) {
-    final jsonData = jsonDecode(responseBody);
-    final jsonMap = Map<String, dynamic>.from(jsonData as Map);
-    return Tweet.fromJson(jsonMap);
+  @override
+  Future<void> reactToPost(int postId, int reactionId) async {
+    try {
+      await _authService.init();
+      final response = await _httpClient.post(
+        Uri.parse('$baseUrl/posts/$postId/reactions'),
+        headers: _getHeaders(),
+        body: jsonEncode({'reactionId': reactionId}),
+      );
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Error al reaccionar: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error: $e');
+    }
   }
 
-  /// Close the HTTP client (cleanup)
   @override
   void dispose() {
     _httpClient.close();

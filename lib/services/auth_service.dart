@@ -40,6 +40,33 @@ class AuthService {
     await _ensureInit();
   }
 
+Future<void> register(String username, String email, String password) async {
+  try {
+    await _ensureInit();
+    final response = await _httpClient.post(
+      Uri.parse('$baseUrl/auth/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'email': email,
+        'password': password,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      String errorMsg = 'Error al registrar (${response.statusCode})';
+      try {
+        final body = jsonDecode(response.body);
+        errorMsg = body['message']?.toString() ?? errorMsg;
+      } catch (_) {}
+      throw Exception(errorMsg);
+    }
+  } catch (e) {
+    throw Exception('$e');
+  }
+}
+
   /// Login with username and password
   /// Returns the user if successful
   Future<User> login(String username, String password) async {

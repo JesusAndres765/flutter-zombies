@@ -1,31 +1,38 @@
+import 'user.dart';
+
 class Tweet {
   final int id;
-  final String tweet;
+  final String description;
+  final String? imageUrl;
+  final User? postedBy;
 
   Tweet({
     required this.id,
-    required this.tweet,
+    required this.description,
+    this.imageUrl,
+    this.postedBy,
   });
 
-  /// Convert JSON to Tweet object
   factory Tweet.fromJson(Map<String, dynamic> json) {
-    final id = json['id'];
-    final tweetContent = json['tweet'];
-    
     return Tweet(
-      id: id is int ? id : (id is String ? int.tryParse(id) ?? 0 : 0),
-      tweet: tweetContent is String ? tweetContent : tweetContent?.toString() ?? '',
+      id: json['id'] is int
+          ? json['id']
+          : int.tryParse(json['id'].toString()) ?? 0,
+      description: json['description']?.toString() ?? '',
+      imageUrl: json['imageUrl']?.toString(),
+      postedBy: json['postedBy'] != null
+          ? User.fromJson(Map<String, dynamic>.from(json['postedBy'] as Map))
+          : null,
     );
   }
 
-  /// Convert Tweet object to JSON
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'tweet': tweet,
+      'description': description,
+      'imageUrl': imageUrl,
     };
   }
 
   @override
-  String toString() => 'Tweet(id: $id, tweet: $tweet)';
+  String toString() => 'Tweet(id: $id, description: $description)';
 }
