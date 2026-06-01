@@ -283,14 +283,13 @@ class _MyHomePageState extends State<MyHomePage> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+        floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFCC0000),
         foregroundColor: Colors.white,
-        // onPressed se conectará a /create-post en el siguiente paso
         onPressed: () => Navigator.of(context).pushNamed('/create-post')
             .then((_) => _loadPosts()),
-        child: const Icon(Icons.add),
         tooltip: 'Nuevo reporte',
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -356,6 +355,49 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
+  bool _isValidUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    final hasScheme = uri.hasAbsolutePath && (uri.isScheme('http') || uri.isScheme('https'));
+    final isSearchUrl = url.contains('/search') || 
+                        (url.contains('?') && !url.contains('.jpg') && !url.contains('.png') && !url.contains('.jpeg'));
+    return hasScheme && !isSearchUrl;
+  }
+
+  Widget _buildImageErrorWidget() {
+    return Container(
+      height: 120,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2A0000), Color(0xFF0D0000)],
+        ),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: Color(0xFFCC0000), size: 28),
+            SizedBox(height: 6),
+            Text(
+              '[ ARCHIVO DAÑADO / ENLACE ROTO ]',
+              style: TextStyle(
+                color: Color(0xFFCC0000),
+                fontSize: 10,
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwner = widget.currentUserId != null &&
@@ -412,30 +454,25 @@ class _PostCardState extends State<PostCard> {
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.zero),
-              child: CachedNetworkImage(
-                imageUrl: widget.post.imageUrl!,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: const Color(0xFF1A0000),
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFCC0000),
-                      strokeWidth: 2,
-                    ),
-                  ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  height: 80,
-                  color: const Color(0xFF1A0000),
-                  child: const Center(
-                    child: Icon(Icons.broken_image,
-                        color: Color(0xFF3A0000), size: 32),
-                  ),
-                ),
-              ),
+              child: _isValidUrl(widget.post.imageUrl)
+                  ? CachedNetworkImage(
+                      imageUrl: widget.post.imageUrl!,
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        height: 200,
+                        color: const Color(0xFF1A0000),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFCC0000),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => _buildImageErrorWidget(),
+                    )
+                  : _buildImageErrorWidget(),
             ),
           ],
 

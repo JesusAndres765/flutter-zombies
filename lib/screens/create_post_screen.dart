@@ -24,10 +24,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     super.dispose();
   }
 
+  bool _isValidUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    final hasScheme = uri.hasAbsolutePath && (uri.isScheme('http') || uri.isScheme('https'));
+    final isSearchUrl = url.contains('/search') || 
+                        (url.contains('?') && !url.contains('.jpg') && !url.contains('.png') && !url.contains('.jpeg'));
+    return hasScheme && !isSearchUrl;
+  }
+
   Future<void> _submitPost() async {
     final description = _descriptionController.text.trim();
     if (description.isEmpty) {
       setState(() => _errorMessage = 'La descripción no puede estar vacía');
+      return;
+    }
+
+    final imageUrl = _imageUrlController.text.trim();
+    if (imageUrl.isNotEmpty && !_isValidUrl(imageUrl)) {
+      setState(() => _errorMessage = 'Por favor, introduce una URL de imagen directa válida (ej: debe empezar con http:// o https:// y terminar en extensión de imagen, o no ser un buscador)');
       return;
     }
 
@@ -37,7 +53,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     });
 
     try {
-      final imageUrl = _imageUrlController.text.trim();
       await _tweetService.createTweet(
         description,
         imageUrl.isEmpty ? null : imageUrl,
@@ -224,36 +239,51 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: CachedNetworkImage(
-                    imageUrl: _previewUrl,
-                    width: double.infinity,
-                    height: 180,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      height: 180,
-                      color: const Color(0xFF1A0000),
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFFCC0000),
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      height: 80,
-                      color: const Color(0xFF1A0000),
-                      child: const Center(
-                        child: Text(
-                          '[ URL INVÁLIDA ]',
-                          style: TextStyle(
-                            color: Color(0xFF884444),
-                            fontFamily: 'monospace',
-                            fontSize: 12,
+                  child: _isValidUrl(_previewUrl)
+                      ? CachedNetworkImage(
+                          imageUrl: _previewUrl,
+                          width: double.infinity,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            height: 180,
+                            color: const Color(0xFF1A0000),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFCC0000),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            height: 80,
+                            color: const Color(0xFF1A0000),
+                            child: const Center(
+                              child: Text(
+                                '[ ARCHIVO NO SOPORTADO / ENLACE ROTO ]',
+                                style: TextStyle(
+                                  color: Color(0xFF884444),
+                                  fontFamily: 'monospace',
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          height: 80,
+                          color: const Color(0xFF1A0000),
+                          child: const Center(
+                            child: Text(
+                              '[ URL DE IMAGEN INVÁLIDA O DE BÚSQUEDA ]',
+                              style: TextStyle(
+                                color: Color(0xFF884444),
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ],

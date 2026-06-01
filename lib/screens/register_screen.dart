@@ -35,6 +35,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (username.length < 3 || username.length > 20) {
+      setState(() => _errorMessage = 'El identificador de superviviente debe tener entre 3 y 20 caracteres.');
+      return;
+    }
+
+    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegExp.hasMatch(email) || email.length > 50) {
+      setState(() => _errorMessage = 'Por favor, introduce un correo de contacto válido (máximo 50 caracteres).');
+      return;
+    }
+
+    if (password.length < 6 || password.length > 40) {
+      setState(() => _errorMessage = 'La clave de acceso militar debe tener entre 6 y 40 caracteres.');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;

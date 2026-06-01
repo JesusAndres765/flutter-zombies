@@ -5,18 +5,16 @@ import '../models/tweet_response.dart';
 import '../models/reaction_count.dart';
 import '../repositories/tweet_repository.dart';
 import 'auth_service.dart';
+import '../config/app_config.dart';
 
 class TweetService implements ITweetRepository {
   static final TweetService _instance = TweetService._internal();
 
-  // Para APK en dispositivo real: cambia a tu IP local, ej: http://192.168.1.X:8080/api
-  final String baseUrl = 'http://localhost:8080/api';
+  String get baseUrl => AppConfig.baseUrl;
 
-  late http.Client _httpClient;
   late AuthService _authService;
 
   TweetService._internal() {
-    _httpClient = http.Client();
     _authService = AuthService();
   }
 
@@ -26,7 +24,7 @@ class TweetService implements ITweetRepository {
 
   Map<String, String> _getHeaders() {
     final token = _authService.getToken();
-    final headers = {'Content-Type': 'application/json'};
+    final headers = <String, String>{'Content-Type': 'application/json'};
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -37,7 +35,7 @@ class TweetService implements ITweetRepository {
   Future<List<Tweet>> fetchTweets() async {
     try {
       await _authService.init();
-      final response = await _httpClient.get(
+      final response = await http.get(
         Uri.parse('$baseUrl/posts/all'),
         headers: _getHeaders(),
       );
@@ -49,7 +47,10 @@ class TweetService implements ITweetRepository {
       } else {
         throw Exception('Error al cargar posts: ${response.statusCode}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('No se pudo conectar al servidor: ${e.message}');
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Error: $e');
     }
   }
@@ -58,7 +59,7 @@ class TweetService implements ITweetRepository {
   Future<Tweet> createTweet(String description, String? imageUrl) async {
     try {
       await _authService.init();
-      final response = await _httpClient.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/posts/create'),
         headers: _getHeaders(),
         body: jsonEncode({
@@ -69,10 +70,16 @@ class TweetService implements ITweetRepository {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Tweet.fromJson(
             Map<String, dynamic>.from(jsonDecode(response.body) as Map));
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
       } else {
-        throw Exception('Error al crear post: ${response.statusCode}. ${response.body}');
+        throw Exception(
+            'Error al crear post: ${response.statusCode}. ${response.body}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('No se pudo conectar al servidor: ${e.message}');
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Error: $e');
     }
   }
@@ -81,14 +88,22 @@ class TweetService implements ITweetRepository {
   Future<void> deleteTweet(int id) async {
     try {
       await _authService.init();
-      final response = await _httpClient.delete(
+      final response = await http.delete(
         Uri.parse('$baseUrl/posts/$id'),
         headers: _getHeaders(),
       );
-      if (response.statusCode != 200 && response.statusCode != 204) {
-        throw Exception('Error al eliminar: ${response.statusCode}. ${response.body}');
+      if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      } else if (response.statusCode == 403) {
+        throw Exception('No puedes eliminar un post que no es tuyo.');
+      } else if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception(
+            'Error al eliminar: ${response.statusCode}. ${response.body}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('No se pudo conectar al servidor: ${e.message}');
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Error: $e');
     }
   }
@@ -97,19 +112,24 @@ class TweetService implements ITweetRepository {
   Future<List<ReactionCount>> fetchReactions(int postId) async {
     try {
       await _authService.init();
-      final response = await _httpClient.get(
+      final response = await http.get(
         Uri.parse('$baseUrl/posts/$postId/reactions'),
         headers: _getHeaders(),
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data
-            .map((e) => ReactionCount.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map((e) =>
+                ReactionCount.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
       } else {
-        throw Exception('Error al cargar reacciones: ${response.statusCode}');
+        throw Exception(
+            'Error al cargar reacciones: ${response.statusCode}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('No se pudo conectar al servidor: ${e.message}');
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Error: $e');
     }
   }
@@ -118,7 +138,7 @@ class TweetService implements ITweetRepository {
   Future<void> reactToPost(int postId, int reactionId) async {
     try {
       await _authService.init();
-      final response = await _httpClient.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/posts/$postId/reactions'),
         headers: _getHeaders(),
         body: jsonEncode({'reactionId': reactionId}),
@@ -126,13 +146,16 @@ class TweetService implements ITweetRepository {
       if (response.statusCode != 200 && response.statusCode != 201) {
         throw Exception('Error al reaccionar: ${response.statusCode}');
       }
+    } on http.ClientException catch (e) {
+      throw Exception('No se pudo conectar al servidor: ${e.message}');
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Error: $e');
     }
   }
 
   @override
   void dispose() {
-    _httpClient.close();
+    // Singleton — no cerrar recursos compartidos
   }
 }
