@@ -4,6 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../config/app_config.dart';
 
+class SessionExpiredException implements Exception {
+  const SessionExpiredException();
+  @override
+  String toString() => 'Sesión expirada. Inicia sesión nuevamente.';
+}
+
 class AuthService {
   static final AuthService _instance = AuthService._internal();
 
@@ -12,17 +18,11 @@ class AuthService {
   SharedPreferences? _prefs;
 
   static const String _tokenKey = 'auth_token';
-  static const String _userKey = 'auth_user';
+  static const String _userKey  = 'auth_user';
 
   AuthService._internal();
-
-  factory AuthService() {
-    return _instance;
-  }
-
-  static AuthService getInstance() {
-    return _instance;
-  }
+  factory AuthService() => _instance;
+  static AuthService getInstance() => _instance;
 
   Future<void> _ensureInit() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -79,11 +79,10 @@ class AuthService {
         final jsonData = jsonDecode(response.body);
 
         final token = jsonData['accessToken']?.toString() ?? '';
-
         final userData = {
-          'id': jsonData['id'],
+          'id':       jsonData['id'],
           'username': jsonData['username'],
-          'email': jsonData['email'],
+          'email':    jsonData['email'],
         };
 
         if (token.isEmpty) {
@@ -91,10 +90,8 @@ class AuthService {
         }
 
         await _prefs!.setString(_tokenKey, token);
-
         final user = User.fromJson(userData);
         await _prefs!.setString(_userKey, jsonEncode(user.toJson()));
-
         return user;
       } else {
         String errorMsg = 'Error al iniciar sesión (${response.statusCode})';
@@ -132,13 +129,16 @@ class AuthService {
     return token != null && token.isNotEmpty;
   }
 
-  Future<void> logout() async {
+  /// Limpia la sesión local (token expirado o inválido)
+  Future<void> clearSession() async {
     await _ensureInit();
     await _prefs!.remove(_tokenKey);
     await _prefs!.remove(_userKey);
   }
 
-  void dispose() {
-    // Singleton — no cerrar recursos compartidos
+  Future<void> logout() async {
+    await clearSession();
   }
+
+  void dispose() {}
 }
